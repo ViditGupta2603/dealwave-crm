@@ -1,0 +1,114 @@
+# Dealwave CRM - production stack with automatic HTTPS (Caddy + Let's Encrypt).
+#   1. Point your domain's DNS A record at this server, open ports 80 and 443.
+#   2. cp .env.example .env  and fill in DOMAIN and every secret.
+#   3. docker compose -f docker-compose.prod.yml up -d --build
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: "4000"
+  DATABASE_URL: postgres://crm_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/dealwave
+  MIGRATION_DATABASE_URL: postgres://dealwave:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/dealwave
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (openssl rand -hex 48)}
+  APP_URL: https://${DOMAIN:?set DOMAIN in .env}
+  SEED_DEMO: ${SEED_DEMO:-false}
+  # Caddy -> nginx (web) -> api: two proxies sit in front of the API
+  TRUST_PROXY_HOPS: "2"
+  ALLOW_PRIVATE_WEBHOOKS: "false"
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  MAIL_FROM: ${MAIL_FROM:-Dealwave CRM <no-reply@dealwave.local>}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  AI_MODEL: ${AI_MODEL:-}
+  RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+  RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+  RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+  TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-false}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: dealwave
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: dealwave
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dealwave -d dealwave"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    restart: always
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build: ./api
+    restart: always
+    command: ["node", "src/worker.js"]
+    environment: *api-env
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_SHOW_DEMO: ${SHOW_DEMO_LOGINS:-false}
+    restart: always
+    expose:
+      - "80"
+    depends_on:
+      api: { condition: service_healthy }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

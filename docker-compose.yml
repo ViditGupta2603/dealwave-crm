@@ -1,0 +1,90 @@
+# Dealwave CRM - local / demo stack.  Start with:  docker compose up --build
+# Then open http://localhost:8080 . Demo data is loaded automatically on first start.
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: "4000"
+  DATABASE_URL: postgres://crm_app:${APP_DB_PASSWORD:-dealwave_app_local_pw}@postgres:5432/dealwave
+  MIGRATION_DATABASE_URL: postgres://dealwave:${POSTGRES_PASSWORD:-dealwave_local_pw}@postgres:5432/dealwave
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD:-dealwave_app_local_pw}
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET:-dealwave-local-dev-secret-not-for-production-0123456789abcdef}
+  APP_URL: ${APP_URL:-http://localhost:8080}
+  SEED_DEMO: ${SEED_DEMO:-true}
+  TRUST_PROXY_HOPS: "1"
+  ALLOW_PRIVATE_WEBHOOKS: "false"
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  MAIL_FROM: ${MAIL_FROM:-Dealwave CRM <no-reply@dealwave.local>}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  AI_MODEL: ${AI_MODEL:-}
+  RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+  RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+  RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+  TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-false}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dealwave
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dealwave_local_pw}
+      POSTGRES_DB: dealwave
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dealwave -d dealwave"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build: ./api
+    restart: unless-stopped
+    command: ["node", "src/worker.js"]
+    environment: *api-env
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

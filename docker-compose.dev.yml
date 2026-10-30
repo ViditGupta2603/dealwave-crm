@@ -1,0 +1,24 @@
+# Only the database and Redis, for working on the code from VS Code without building the whole stack.
+#   docker compose -f docker-compose.dev.yml up -d
+# Then run the API and the web app on your laptop (see HOW-TO-RUN.md, "Method 2").
+# Ports are 5433 and 6380 on purpose, so they do not clash with a Postgres/Redis already installed on your laptop.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dealwave
+    ports:
+      - "5433:5432"
+    volumes:
+      - devpgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+
+volumes:
+  devpgdata:

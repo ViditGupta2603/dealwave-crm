@@ -1,0 +1,43 @@
+@import '@fontsource-variable/bricolage-grotesque/index.css';
+@import '@fontsource-variable/figtree/index.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 245 246 243; --surface: 255 255 255; --sunken: 238 241 237; --ink: 20 32 30; --muted: 107 122 118; --line: 225 229 224;
+  --primary: 15 107 92; --primary-ink: 255 255 255; --primary-soft: 224 240 236;
+  --accent: 242 169 0; --danger: 214 69 69; --danger-soft: 251 232 232; --success: 34 139 84; --success-soft: 223 242 231;
+  --warn: 176 106 0; --warn-soft: 253 240 210;
+  --sidebar: 14 42 38; --sidebar-ink: 214 232 227;
+  color-scheme: light;
+}
+/* Dark = AMOLED black: the page itself is true #000 (pixels switch off on OLED phones), cards are only a step lighter,
+   and borders do the separating work that shadows do in the light theme. */
+[data-theme='dark'] {
+  --bg: 0 0 0; --surface: 12 13 13; --sunken: 22 24 24; --ink: 236 240 238; --muted: 150 161 157; --line: 40 44 43;
+  --primary: 63 190 165; --primary-ink: 0 20 16; --primary-soft: 9 40 35;
+  --accent: 242 169 0; --danger: 240 110 110; --danger-soft: 46 14 14; --success: 84 200 132; --success-soft: 9 38 24;
+  --warn: 240 176 60; --warn-soft: 44 31 5;
+  --sidebar: 0 0 0; --sidebar-ink: 190 214 207;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+html { background: rgb(var(--bg)); }
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+  font-size: 14.5px; line-height: 1.45; font-feature-settings: 'tnum' 1, 'cv11' 1;
+}
+h1, h2, h3, .font-display { font-family: 'Bricolage Grotesque Variable', system-ui, sans-serif; letter-spacing: -0.015em; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 2px; border-radius: 4px; }
+::selection { background: rgb(var(--accent) / 0.35); }
+input, select, textarea { font: inherit; }
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 8px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
